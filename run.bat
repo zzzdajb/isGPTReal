@@ -17,3 +17,4 @@ go build -o isGPTReal.exe ./cmd
 REM 启动程序
 echo 启动完成，请在浏览器中访问: http://localhost:8080
 isGPTReal.exe --port=8080
+pause
