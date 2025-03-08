@@ -34,11 +34,19 @@ jobs:
       
       - name: Prepare Windows Package
         run: |
+          # 安装 unix2dos 工具
+          sudo apt-get update && sudo apt-get install -y tofrodos
           mkdir -p windows-package
           cp isGPTReal-windows-amd64.exe windows-package/isGPTReal.exe
           cp -r static windows-package/
           cp -r templates windows-package/
-          cp run.bat windows-package/ || echo "run.bat not found"
+          # 复制 run.bat 并转换为 Windows 行结束符
+          if [ -f run.bat ]; then
+            cp run.bat windows-package/
+            todos windows-package/run.bat
+          else
+            echo "run.bat not found"
+          fi
           
       - name: Prepare Linux Package
         run: |
