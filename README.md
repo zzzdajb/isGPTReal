@@ -1,126 +1,121 @@
-# isGPTReal - OpenAI API 真实性检测工具
+# isGPTReal
 
-## 项目简介
+[![Go Version](https://img.shields.io/badge/Go-1.16%2B-blue)](https://golang.org/)
+[![License](https://img.shields.io/badge/License-GPL--3.0-green)](LICENSE)
 
-这个工具用于检测OpenAI兼容API是否为真实的官方API或是"中转API"。由于OpenAI官方不支持在中国大陆提供服务，许多中国用户使用"中转API"服务，而这些服务可能实际使用的是逆向工程的API，功能和性能可能与官方API存在差异。
+[English](README_EN.md) | 简体中文
+
+## 📝 项目简介
+
+isGPTReal 是一个强大的工具，用于验证 OpenAI 兼容 API 的真实性。在中国大陆由于无法直接访问 OpenAI 服务，许多用户会使用"中转 API"。这些服务可能使用逆向工程的方式实现，可能存在功能缺失或性能问题。本工具帮助你验证所使用的 API 是否为真实的官方服务。
+
+### ✨ 主要特性
+
+- 🔍 全面的 API 真实性检测
+  - Token 限制检测
+  - Logprobs 支持检测
+  - 多结果返回检测
+  - 停止序列功能检测
+- 🌐 美观的 Web 界面
+- ⏱️ 支持单次检测和定时自动检测
+- 📊 检测历史记录查看
+- 🔬 API 原始响应内容查看
+- 🚀 一键部署，使用简单
+
+## 🛠️ 技术实现
 
 ### 检测原理
 
-本工具通过测试以下四种OpenAI API特性来判断API真实性：
+本工具通过测试以下特性来判断 API 真实性：
 
-- **max_tokens参数**：检查是否正确处理token数量限制
-- **logprobs参数**：检查是否支持并返回logprobs信息
-- **n参数**：检查是否能正确处理多个结果返回
-- **stop参数**：检查是否能正确实现停止序列功能
+| 特性 | 检测内容 | 重要性 |
+|------|---------|--------|
+| max_tokens | Token 数量限制处理 | ⭐⭐⭐ |
+| logprobs | logprobs 信息支持 | ⭐⭐⭐⭐ |
+| n 参数 | 多结果返回能力 | ⭐⭐ |
+| stop 参数 | 停止序列功能实现 | ⭐⭐⭐ |
 
-### 功能特性
-
-- 单次检测与定时自动检测
-- 美观的Web界面实时展示检测结果
-- 检测历史记录查看
-- 支持查看API原始响应内容
-- 前后端一体化设计，易于部署
-
-## 部署教程
+## 🚀 快速开始
 
 ### 环境要求
 
-- Go 1.16或更高版本
-- 有效的OpenAI API密钥
+- Go 1.16+
+- 有效的 OpenAI API 密钥
+- Windows/Linux/macOS 系统
 
-### 方法一：从源码安装
+### 部署方式
 
-1. 克隆仓库
-
-```bash
-git clone https://github.com/user/isGPTReal.git
-cd isGPTReal
-```
-
-2. 编译项目
+#### 1️⃣ 使用预编译文件（推荐）
 
 ```bash
-go build -o isGPTReal ./cmd
-```
-
-3. 运行程序
-
-```bash
-# 基本运行方式
-./isGPTReal
-
-# 或者指定参数运行（包括模型）
-./isGPTReal --endpoint="https://api.openai.com/v1/chat/completions" --apikey="你的API密钥" --model="gpt-4o-mini" --port=8080
-```
-
-### 方法二：使用预编译的可执行文件
-
-1. 下载适合你操作系统的可执行文件
-2. 赋予执行权限（Linux/Mac）或直接运行（Windows）
-3. 使用以下命令运行：
-
-Windows:
-```
+# Windows
 isGPTReal.exe --endpoint="https://api.openai.com/v1/chat/completions" --apikey="你的API密钥" --model="gpt-4o-mini"
-```
 
-Linux/Mac:
-```
+# Linux/macOS
 ./isGPTReal --endpoint="https://api.openai.com/v1/chat/completions" --apikey="你的API密钥" --model="gpt-4o-mini"
 ```
 
-### 方法三：使用提供的脚本运行
+#### 2️⃣ 从源码编译
 
-项目提供了便捷的运行脚本：
-
-- Windows系统：双击运行`run.bat`
-- Linux/Mac系统：运行`./run.sh`
-
-你可以编辑这些脚本，在其中设置环境变量：
-
+```bash
+git clone https://github.com/zzzdajb/isGPTReal.git
+cd isGPTReal
+go build -o isGPTReal ./cmd
 ```
-# Windows (run.bat)
+
+#### 3️⃣ 使用便捷脚本
+
+Windows：
+```batch
+# 编辑 run.bat 设置环境变量
 set OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
 set OPENAI_API_KEY=你的API密钥
+```
 
-# Linux/Mac (run.sh)
+Linux/macOS：
+```bash
+# 编辑 run.sh 设置环境变量
 export OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
 export OPENAI_API_KEY=你的API密钥
 ```
 
-### 命令行参数
+### ⚙️ 配置参数
 
-- `--endpoint`：OpenAI兼容API的端点URL
-- `--apikey`：API密钥
-- `--model`：使用的模型（默认：gpt-3.5-turbo）
-  - 支持的模型：gpt-3.5-turbo、gpt-4等OpenAI支持的聊天模型
-  - 如果使用第三方API，请确保指定的模型名称与API提供商支持的模型一致
-- `--interval`：自动检测间隔，单位为分钟（0表示不自动检测）
-- `--port`：Web服务器端口（默认：8080）
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| --endpoint | API 端点 URL | - |
+| --apikey | API 密钥 | - |
+| --model | 使用的模型 | gpt-4o-mini |
+| --interval | 自动检测间隔(分钟) | 0 |
+| --port | Web 服务端口 | 8080 |
 
-## 使用说明
+## 📖 使用指南
 
-1. 启动程序后，在浏览器中访问 `http://localhost:8080`
-2. 在配置页面填写：
-   - API端点
-   - API密钥
-   - 模型名称（默认为gpt-3.5-turbo，可根据需要修改）
+1. 启动程序后访问 `http://localhost:8080`
+2. 在配置页面填写必要信息：
+   - API 端点
+   - API 密钥
+   - 模型名称
    - 检测间隔（可选）
-3. 点击"立即检测"按钮进行单次检测
-4. 或设置检测间隔并点击"启动定时检测"进行自动检测
-5. 查看检测结果和历史记录
+3. 选择检测模式：
+   - 点击"立即检测"进行单次检测
+   - 设置间隔并启动定时检测
 
-## 注意事项
+## ⚠️ 注意事项
 
-- 本工具仅用于技术研究和学习目的
-- 请遵守OpenAI的服务条款和相关法律法规
-- 检测结果仅供参考，不同的API实现可能会影响检测准确性
-- 确保使用的模型名称与API提供商支持的模型一致，否则可能导致检测失败
+- 检测结果仅供参考，不同 API 实现可能影响准确性
+- 请确保使用的模型名称与 API 提供商支持的一致
+- 程序使用内存存储，重启后数据会丢失
+- 建议定期进行检测，及时发现 API 变化
 
-## 许可证
+## 📄 许可证
 
-MIT
+本项目采用 [GPL-3.0](LICENSE) 许可证。
 
-## 免责声明
+## 🙏 鸣谢
 
-本工具仅用于技术研究和学习目的，请遵守OpenAI的服务条款和相关法律法规。 
+家贫，无以致Cursor以得，每假借于试用之家（狗头），因此特别感谢 [Cursor](https://cursor.sh/) 对本项目的支持！
+
+---
+
+如有问题或建议，欢迎提交 Issue 或 Pull Request。

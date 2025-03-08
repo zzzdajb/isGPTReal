@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -25,39 +26,40 @@ type Result struct {
 	Error        string    `json:"error,omitempty"`
 	RawResponse  string    `json:"raw_response,omitempty"`
 
-	// 新增token相关信息
-	LocalTokenCount int `json:"local_token_count,omitempty"`
-	APITokenCount   int `json:"api_token_count,omitempty"`
-	APITotalTokens  int `json:"api_total_tokens,omitempty"`
+	// Token相关信息
+	LocalTokenCount int `json:"local_token_count,omitempty"` // 本地计算的token数量
+	APITokenCount   int `json:"api_token_count,omitempty"`   // API返回的token数量
+	APITotalTokens  int `json:"api_total_tokens,omitempty"`  // API返回的总token数量（包括输入和输出）
 }
 
 // Config 表示检测器的配置
 type Config struct {
-	Endpoint    string `json:"endpoint"`
-	APIKey      string `json:"api_key"`
-	Model       string `json:"model"`
-	Interval    int    `json:"interval"` // 以分钟为单位
-	MaxHistory  int    `json:"max_history"`
-	SaveRawResp bool   `json:"save_raw_response"`
+	Endpoint    string `json:"endpoint"`          // OpenAI兼容API的端点URL
+	APIKey      string `json:"api_key"`           // API访问密钥
+	Model       string `json:"model"`             // 使用的模型名称
+	Interval    int    `json:"interval"`          // 自动检测间隔（分钟），0表示不自动检测
+	MaxHistory  int    `json:"max_history"`       // 保存的最大历史记录数
+	SaveRawResp bool   `json:"save_raw_response"` // 是否保存原始响应
 }
 
 // Detector 表示API检测器
 type Detector struct {
 	config     Config
 	results    []Result
-	mu         sync.RWMutex
+	mu         sync.RWMutex // 保护并发访问results
 	httpClient *http.Client
 }
 
-// NewDetector 创建一个新的检测器
+// NewDetector 创建一个新的检测器实例
 func NewDetector(config Config) *Detector {
+	// 设置默认的历史记录数
 	if config.MaxHistory <= 0 {
 		config.MaxHistory = 100
 	}
 
 	return &Detector{
 		config:     config,
-		results:    make([]Result, 0),
+		results:    make([]Result, 0, config.MaxHistory), // 预分配容量
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
@@ -96,127 +98,125 @@ func (d *Detector) DetectOnce() Result {
 	multipleOK, multipleErr := d.checkMultipleResponses()
 	stopOK, stopErr := d.checkStopSequence()
 
+	// 设置检测结果
 	result.MaxTokensOK = maxTokensOK
 	result.LogprobsOK = logprobsOK
 	result.MultipleOK = multipleOK
 	result.StopSequence = stopOK
 
-	// 保存token相关数据
+	// 设置Token信息
 	result.LocalTokenCount = localTokens
 	result.APITokenCount = apiTokens
 	result.APITotalTokens = totalTokens
 
-	// 汇总结果
-	var errors []string
-	if maxTokensErr != nil {
-		errors = append(errors, fmt.Sprintf("MaxTokens error: %v", maxTokensErr))
-	}
-	if logprobsErr != nil {
-		errors = append(errors, fmt.Sprintf("Logprobs error: %v", logprobsErr))
-	}
-	if multipleErr != nil {
-		errors = append(errors, fmt.Sprintf("Multiple responses error: %v", multipleErr))
-	}
-	if stopErr != nil {
-		errors = append(errors, fmt.Sprintf("Stop sequence error: %v", stopErr))
-	}
-
-	if len(errors) > 0 {
-		result.Error = fmt.Sprintf("%v", errors)
-	}
-
-	// 如果所有检测都通过，则认为是真实的API
+	// 如果所有检测都通过，则认为是真实API
 	result.IsRealAPI = maxTokensOK && logprobsOK && multipleOK && stopOK
 
-	// 保存结果
-	d.mu.Lock()
-	d.results = append(d.results, result)
-	if len(d.results) > d.config.MaxHistory {
-		d.results = d.results[len(d.results)-d.config.MaxHistory:]
+	// 收集错误信息
+	errorMsgs := []string{}
+	if maxTokensErr != nil {
+		errorMsgs = append(errorMsgs, fmt.Sprintf("Max tokens测试错误: %v", maxTokensErr))
 	}
-	d.mu.Unlock()
+	if logprobsErr != nil {
+		errorMsgs = append(errorMsgs, fmt.Sprintf("Logprobs测试错误: %v", logprobsErr))
+	}
+	if multipleErr != nil {
+		errorMsgs = append(errorMsgs, fmt.Sprintf("Multiple测试错误: %v", multipleErr))
+	}
+	if stopErr != nil {
+		errorMsgs = append(errorMsgs, fmt.Sprintf("Stop sequence测试错误: %v", stopErr))
+	}
+
+	// 合并错误信息
+	if len(errorMsgs) > 0 {
+		result.Error = strings.Join(errorMsgs, "; ")
+	}
+
+	// 保存结果
+	d.saveResult(result)
 
 	return result
 }
 
+// saveResult 保存检测结果到历史记录
+func (d *Detector) saveResult(result Result) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// 添加结果
+	d.results = append(d.results, result)
+
+	// 如果超过最大历史记录数，删除最早的记录
+	if len(d.results) > d.config.MaxHistory {
+		d.results = d.results[len(d.results)-d.config.MaxHistory:]
+	}
+}
+
 // checkMaxTokens 检查max_tokens参数是否生效
 func (d *Detector) checkMaxTokens() (bool, int, int, int, error) {
-	// 构造请求极少tokens的请求
-	shortReq := map[string]interface{}{
-		"model":       d.config.Model,
-		"messages":    []map[string]string{{"role": "user", "content": "请写一篇非常长的文章，描述人工智能的历史、现状和未来，至少5000字"}},
-		"max_tokens":  10,
-		"temperature": 0.3,
+	// 构造请求，限制最大token数为10
+	content := "# 人工智能的历史、现状与未来发展趋势\n\n人工智能（Artificial Intelligence，简称AI）"
+	maxTokens := 10
+
+	req := map[string]interface{}{
+		"model":      d.config.Model,
+		"messages":   []map[string]string{{"role": "user", "content": content}},
+		"max_tokens": maxTokens,
+	}
+
+	// 计算本地token数
+	localTokenCount, err := countTokens(content)
+	if err != nil {
+		log.Printf("计算本地token失败: %v", err)
+		localTokenCount = -1
 	}
 
 	var response map[string]interface{}
-	err := d.makeRequest(shortReq, &response)
+	err = d.makeRequest(req, &response)
 	if err != nil {
-		return false, 0, 0, 0, err
+		return false, localTokenCount, 0, 0, err
+	}
+
+	// 获取API返回的token数量
+	apiTokenCount := 0
+	apiTotalTokens := 0
+	var returnedContent string
+
+	if usage, ok := response["usage"].(map[string]interface{}); ok {
+		if ct, ok := usage["completion_tokens"].(float64); ok {
+			apiTokenCount = int(ct)
+		}
+		if tt, ok := usage["total_tokens"].(float64); ok {
+			apiTotalTokens = int(tt)
+		}
 	}
 
 	if choices, ok := response["choices"].([]interface{}); ok && len(choices) > 0 {
 		if choice, ok := choices[0].(map[string]interface{}); ok {
 			if message, ok := choice["message"].(map[string]interface{}); ok {
 				if content, ok := message["content"].(string); ok {
-					// 使用tiktoken计算实际token数（仅用于记录）
-					localTokenCount, _ := countTokens(content)
-
-					// 获取API自己报告的token数
-					apiTokenCount := 0
-					apiTotalTokens := 0
-					isApiTokenValid := false
-					if usage, ok := response["usage"].(map[string]interface{}); ok {
-						if completionTokens, ok := usage["completion_tokens"].(float64); ok {
-							apiTokenCount = int(completionTokens)
-							isApiTokenValid = true
-						}
-						if totalTokens, ok := usage["total_tokens"].(float64); ok {
-							apiTotalTokens = int(totalTokens)
-						}
-					}
-
-					// 使用fmt直接打印到控制台，确保能看到
-					fmt.Println("\n========== Token检测详细信息 ==========")
-					fmt.Printf("目标限制: 10 tokens\n")
-					fmt.Printf("本地计算Token数: %d\n", localTokenCount)
-					if isApiTokenValid {
-						fmt.Printf("API报告的completion_tokens: %d\n", apiTokenCount)
-					} else {
-						fmt.Printf("API未报告token数量\n")
-					}
-					fmt.Printf("实际内容: %q\n", content)
-
-					// 打印API返回的token信息（如果有）
-					if apiTotalTokens > 0 {
-						fmt.Printf("API报告的total_tokens: %d\n", apiTotalTokens)
-					}
-
-					// 判断标准：优先使用API报告的token数，如果API没有报告则使用本地计算
-					tokenCount := localTokenCount
-					if isApiTokenValid {
-						tokenCount = apiTokenCount
-					}
-
-					fmt.Printf("用于判断的Token数: %d\n", tokenCount)
-					fmt.Printf("通过检测: %v\n", tokenCount <= 10)
-					fmt.Println("=====================================\n")
-
-					return tokenCount <= 10, localTokenCount, apiTokenCount, apiTotalTokens, nil
+					returnedContent = content
 				}
 			}
 		}
 	}
 
-	return false, 0, 0, 0, fmt.Errorf("无法解析响应格式")
+	// 简洁的日志输出
+	log.Printf("MaxTokens检测: 目标限制=%d, 本地计算=%d, API返回=%d, 总tokens=%d",
+		maxTokens, localTokenCount, apiTokenCount, apiTotalTokens)
+	log.Printf("MaxTokens检测: 返回内容=%q", returnedContent)
+
+	// 检查返回的token数是否符合限制
+	// 有些API会精确遵循max_tokens，有些则会返回略少一些token
+	return apiTokenCount <= maxTokens, localTokenCount, apiTokenCount, apiTotalTokens, nil
 }
 
 // checkLogprobs 检查logprobs参数是否生效
 func (d *Detector) checkLogprobs() (bool, error) {
-	// 构造带有logprobs参数的请求
+	// 构造请求，要求返回logprobs
 	req := map[string]interface{}{
 		"model":        d.config.Model,
-		"messages":     []map[string]string{{"role": "user", "content": "Hello"}},
+		"messages":     []map[string]string{{"role": "user", "content": "What is the capital of France?"}},
 		"logprobs":     true,
 		"top_logprobs": 5,
 	}
@@ -227,29 +227,14 @@ func (d *Detector) checkLogprobs() (bool, error) {
 		return false, err
 	}
 
-	// 检查是否包含logprobs
+	// 检查响应中是否包含logprobs
 	hasLogprobs := false
 	if choices, ok := response["choices"].([]interface{}); ok && len(choices) > 0 {
 		if choice, ok := choices[0].(map[string]interface{}); ok {
 			_, hasLogprobs = choice["logprobs"].(map[string]interface{})
 
-			// 打印详细信息到控制台
-			fmt.Println("\n========== Logprobs参数检测 ==========")
-			fmt.Printf("请求的logprobs: true\n")
-			fmt.Printf("请求的top_logprobs: 5\n")
-			fmt.Printf("响应中是否包含logprobs: %v\n", hasLogprobs)
-
-			// 尝试获取更多详细信息
-			if hasLogprobs {
-				if logprobs, lpOk := choice["logprobs"].(map[string]interface{}); lpOk {
-					if topLogprobs, tlpOk := logprobs["top_logprobs"].([]interface{}); tlpOk {
-						fmt.Printf("返回的top_logprobs数量: %d\n", len(topLogprobs))
-					}
-				}
-			}
-
-			fmt.Printf("通过检测: %v\n", hasLogprobs)
-			fmt.Println("=====================================\n")
+			// 简洁的日志输出
+			log.Printf("Logprobs检测: 请求logprobs=true, 响应包含logprobs=%v", hasLogprobs)
 
 			return hasLogprobs, nil
 		}
@@ -274,18 +259,15 @@ func (d *Detector) checkMultipleResponses() (bool, error) {
 		return false, err
 	}
 
-	// 检查是否返回了多个选择
+	// 检查是否返回了多个回答
+	n := 0
 	if choices, ok := response["choices"].([]interface{}); ok {
-		isMultiple := len(choices) > 1
+		n = len(choices)
 
-		// 打印详细信息到控制台
-		fmt.Println("\n========== 多选项(n)参数检测 ==========")
-		fmt.Printf("请求的选项数: 3\n")
-		fmt.Printf("实际返回选项数: %d\n", len(choices))
-		fmt.Printf("通过检测: %v\n", isMultiple)
-		fmt.Println("=====================================\n")
+		// 简洁的日志输出
+		log.Printf("Multiple检测: 请求n=3, 实际返回n=%d", n)
 
-		return isMultiple, nil
+		return n > 1, nil
 	}
 
 	return false, fmt.Errorf("无法解析响应格式")
@@ -293,11 +275,13 @@ func (d *Detector) checkMultipleResponses() (bool, error) {
 
 // checkStopSequence 检查stop参数是否生效
 func (d *Detector) checkStopSequence() (bool, error) {
-	// 构造带有stop序列的请求
+	// 定义一个特殊的停止序列
 	stopSeq := "THE_END"
+
+	// 构造请求，包含stop参数
 	req := map[string]interface{}{
 		"model":    d.config.Model,
-		"messages": []map[string]string{{"role": "user", "content": "请写一个故事，不要包含THE_END这个词"}},
+		"messages": []map[string]string{{"role": "user", "content": "写一个短篇故事，不要包含THE_END这个词。"}},
 		"stop":     []string{stopSeq},
 	}
 
@@ -307,23 +291,24 @@ func (d *Detector) checkStopSequence() (bool, error) {
 		return false, err
 	}
 
-	// 检查响应中是否包含stop序列
+	// 检查返回的文本是否不包含停止序列
 	if choices, ok := response["choices"].([]interface{}); ok && len(choices) > 0 {
 		if choice, ok := choices[0].(map[string]interface{}); ok {
 			if message, ok := choice["message"].(map[string]interface{}); ok {
 				if content, ok := message["content"].(string); ok {
-					// 检查内容是否被stop序列截断
-					stopSequenceWorks := !strings.Contains(content, stopSeq)
+					notContainsStop := !strings.Contains(content, stopSeq)
 
-					// 打印详细信息到控制台
-					fmt.Println("\n========== Stop参数检测 ==========")
-					fmt.Printf("设置的stop序列: %q\n", stopSeq)
-					fmt.Printf("返回内容是否不含stop序列: %v\n", stopSequenceWorks)
-					fmt.Printf("内容片段: %s\n", truncateString(content, 100)) // 只显示前100个字符
-					fmt.Printf("通过检测: %v\n", stopSequenceWorks)
-					fmt.Println("=====================================\n")
+					// 简洁的日志输出
+					log.Printf("Stop检测: 设置stop=%s, 响应不包含stop=%v", stopSeq, notContainsStop)
 
-					return stopSequenceWorks, nil
+					// 截取一小部分内容
+					contentPreview := content
+					if len(contentPreview) > 40 {
+						contentPreview = contentPreview[:40] + "..."
+					}
+					log.Printf("Stop检测: 内容片段: %s", contentPreview)
+
+					return notContainsStop, nil
 				}
 			}
 		}
@@ -332,54 +317,48 @@ func (d *Detector) checkStopSequence() (bool, error) {
 	return false, fmt.Errorf("无法解析响应格式")
 }
 
-// 辅助函数：截断字符串
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
-
-// makeRequest 发送请求到API
+// makeRequest 向OpenAI API发送请求
 func (d *Detector) makeRequest(reqBody map[string]interface{}, response interface{}) error {
-	jsonData, err := json.Marshal(reqBody)
+	// 序列化请求体
+	reqJSON, err := json.Marshal(reqBody)
 	if err != nil {
-		return err
+		return fmt.Errorf("序列化请求体失败: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", d.config.Endpoint, bytes.NewBuffer(jsonData))
+	// 创建HTTP请求
+	req, err := http.NewRequest("POST", d.config.Endpoint, bytes.NewBuffer(reqJSON))
 	if err != nil {
-		return err
+		return fmt.Errorf("创建HTTP请求失败: %w", err)
 	}
 
+	// 设置请求头
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", d.config.APIKey))
 
+	// 发送请求
 	resp, err := d.httpClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("发送请求失败: %w", err)
 	}
 	defer resp.Body.Close()
 
+	// 读取响应体
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("读取响应体失败: %w", err)
 	}
 
-	if d.config.SaveRawResp {
-		// 保存原始响应到最后一个结果中
-		d.mu.Lock()
-		if len(d.results) > 0 {
-			d.results[len(d.results)-1].RawResponse = string(body)
-		}
-		d.mu.Unlock()
-	}
-
+	// 检查HTTP状态码
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("API返回错误状态码: %d, 响应: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("API返回非200状态码: %d, 响应体: %s", resp.StatusCode, truncateString(string(body), 500))
 	}
 
-	return json.Unmarshal(body, response)
+	// 反序列化响应体
+	if err := json.Unmarshal(body, response); err != nil {
+		return fmt.Errorf("反序列化响应体失败: %w, 响应体: %s", err, truncateString(string(body), 500))
+	}
+
+	return nil
 }
 
 // UpdateConfig 更新检测器的配置而不创建新的检测器实例
@@ -409,26 +388,25 @@ func (d *Detector) CheckEndpointAvailable() bool {
 	return resp.StatusCode != 0
 }
 
+// countTokens 计算文本的token数量
 func countTokens(text string) (int, error) {
-	enc, err := tokenizer.Get(tokenizer.Cl100kBase) // 使用GPT-3.5/4使用的编码器
+	enc, err := tokenizer.Get(tokenizer.Cl100kBase)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("获取tokenizer失败: %w", err)
 	}
 
-	ids, tokens, err := enc.Encode(text)
+	tokens, _, err := enc.Encode(text)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("编码文本失败: %w", err)
 	}
 
-	// 打印详细的token信息
-	fmt.Println("\n=== Token计算详情 ===")
-	fmt.Printf("原始文本: %q\n", text)
-	fmt.Printf("Token数量: %d\n", len(ids))
-	fmt.Println("Token列表:")
-	for i, token := range tokens {
-		fmt.Printf("[%d] %q (ID: %d)\n", i, token, ids[i])
-	}
-	fmt.Println("==================\n")
+	return len(tokens), nil
+}
 
-	return len(ids), nil
+// 辅助函数：截断字符串
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

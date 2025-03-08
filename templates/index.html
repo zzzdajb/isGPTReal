@@ -4,51 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenAI API真实性检测</title>
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .status-badge {
-            width: 12px;
-            height: 12px;
-            display: inline-block;
-            border-radius: 50%;
-            margin-right: 5px;
-        }
-        .status-true {
-            background-color: #198754;
-        }
-        .status-false {
-            background-color: #dc3545;
-        }
-        .card {
-            margin-bottom: 20px;
-        }
-        .result-card {
-            transition: all 0.3s ease;
-        }
-        .result-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        }
-        .last-check {
-            font-size: 0.8rem;
-            color: #6c757d;
-        }
-        #loading {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(255,255,255,0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            display: none;
-        }
-    </style>
+    <!-- 自定义样式 -->
+    <link href="/static/style.css" rel="stylesheet">
 </head>
 <body>
+    <!-- 加载指示器 -->
     <div id="loading">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">加载中...</span>
@@ -59,11 +21,10 @@
         <h1 class="mb-4 text-center">OpenAI API 真实性检测工具</h1>
         
         <div class="row">
+            <!-- 配置面板 -->
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header">
-                        配置
-                    </div>
+                    <div class="card-header">配置</div>
                     <div class="card-body">
                         <form id="configForm">
                             <div class="mb-3">
@@ -89,54 +50,90 @@
                                     <label class="form-check-label" for="saveRawResp">保存原始响应</label>
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-primary">保存配置</button>
-                            <button type="button" id="detectNow" class="btn btn-success ms-2">立即检测</button>
-                            <button type="button" id="toggleSchedule" class="btn btn-info ms-2">定时开关</button>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">保存配置</button>
+                                <button type="button" id="detectNow" class="btn btn-success">立即检测</button>
+                                <button type="button" id="toggleSchedule" class="btn btn-info">定时开关</button>
+                            </div>
                         </form>
                     </div>
                 </div>
 
+                <!-- 状态卡片 -->
                 <div class="card mt-4">
-                    <div class="card-header">
-                        最新检测结果
-                    </div>
-                    <div class="card-body" id="latestResult">
-                        <p class="text-center text-muted">暂无检测结果</p>
+                    <div class="card-header">当前状态</div>
+                    <div class="card-body">
+                        <div id="statusCard">
+                            <div class="mb-3">
+                                <strong>API端点：</strong>
+                                <span id="currentEndpoint">未设置</span>
+                            </div>
+                            <div class="mb-3">
+                                <strong>模型：</strong>
+                                <span id="currentModel">未设置</span>
+                            </div>
+                            <div class="mb-3">
+                                <strong>定时检测：</strong>
+                                <span id="schedulerStatus">未启动</span>
+                            </div>
+                            <div>
+                                <strong>最后检测：</strong>
+                                <span id="lastCheckTime">从未</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            
+
+            <!-- 检测结果 -->
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span>历史检测结果</span>
-                        <span class="last-check" id="lastCheckTime"></span>
-                    </div>
+                    <div class="card-header">最新检测结果</div>
                     <div class="card-body">
-                        <div class="list-group" id="resultsList">
-                            <!-- 结果将通过JavaScript填充 -->
+                        <div id="latestResult">
+                            <div class="text-center py-4">
+                                <p>尚无检测结果，请点击"立即检测"按钮</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 历史结果 -->
+                <div class="card mt-4">
+                    <div class="card-header">历史结果</div>
+                    <div class="card-body">
+                        <div id="historyResults" class="history-container">
+                            <div class="text-center py-4">
+                                <p>尚无历史记录</p>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 原始响应模态框 -->
+        <!-- 原始响应部分 -->
         <div class="modal fade" id="rawResponseModal" tabindex="-1" aria-labelledby="rawResponseModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="rawResponseModalLabel">原始API响应</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
                     </div>
                     <div class="modal-body">
-                        <pre id="rawResponseContent" style="max-height: 400px; overflow-y: auto;"></pre>
+                        <pre id="rawResponseContent" class="bg-light p-3 rounded"></pre>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- 页脚 -->
+    <footer class="text-center mt-5 mb-3">
+        <p class="text-muted">OpenAI API 真实性检测工具</p>
+    </footer>
+
+    <!-- JavaScript 依赖 -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -156,6 +153,9 @@
             
             // 加载检测结果
             loadResults();
+            
+            // 设置自动刷新 (默认30秒)
+            startAutoRefresh(30000);
             
             // 设置表单提交处理
             configForm.addEventListener('submit', function(e) {
@@ -184,6 +184,12 @@
                         document.getElementById('model').value = data.model || 'gpt-3.5-turbo';
                         document.getElementById('interval').value = data.interval || 0;
                         document.getElementById('saveRawResp').checked = data.save_raw_response !== false;
+                        
+                        // 更新当前状态显示
+                        document.getElementById('currentEndpoint').textContent = data.endpoint || '未设置';
+                        document.getElementById('currentModel').textContent = data.model || '未设置';
+                        document.getElementById('schedulerStatus').textContent = data.interval > 0 ? 
+                            `已启动（${data.interval}分钟）` : '未启动';
                         
                         // 更新定时开关按钮状态
                         updateScheduleButton(data.interval > 0);
@@ -293,6 +299,8 @@
             
             // 轮询检测结果
             function pollResults() {
+                let isComplete = false;
+                
                 const pollInterval = setInterval(() => {
                     fetch('/api/results/latest')
                         .then(response => {
@@ -302,14 +310,27 @@
                             return response.json();
                         })
                         .then(data => {
-                            if (data) {
-                                updateLatestResult(data);
-                                updateLastCheckTime(new Date(data.timestamp));
-                                // 如果获取到了结果，停止轮询
-                                clearInterval(pollInterval);
-                                // 刷新结果列表
-                                loadResults();
+                            if (!data) return;
+                            
+                            // 检查是否仍在检测中
+                            if (data.status === "detecting") {
+                                // 仍在检测中，保持"检测中"状态
+                                return;
                             }
+                            
+                            // 如果有message但没有其他检测结果字段，说明还没有结果
+                            if (data.message && !data.is_real_api) {
+                                return;
+                            }
+                            
+                            // 检测已完成，有结果了
+                            isComplete = true;
+                            updateLatestResult(data);
+                            updateLastCheckTime(new Date(data.timestamp));
+                            // 停止轮询
+                            clearInterval(pollInterval);
+                            // 刷新结果列表
+                            loadResults();
                         })
                         .catch(error => {
                             console.error('获取最新检测结果失败:', error);
@@ -320,7 +341,16 @@
                 
                 // 60秒后如果还没有结果，停止轮询
                 setTimeout(() => {
-                    clearInterval(pollInterval);
+                    if (!isComplete) {
+                        clearInterval(pollInterval);
+                        // 更新UI为超时状态
+                        latestResult.innerHTML = `
+                            <div class="alert alert-warning text-center">
+                                <strong>检测超时</strong><br>
+                                检测过程耗时过长，请稍后刷新页面查看结果。
+                            </div>
+                        `;
+                    }
                 }, 60000);
             }
             
@@ -382,61 +412,199 @@
                 toggleScheduleBtn.textContent = isOn ? '停止定时检测' : '启动定时检测';
                 toggleScheduleBtn.classList.remove(isOn ? 'btn-success' : 'btn-danger');
                 toggleScheduleBtn.classList.add(isOn ? 'btn-danger' : 'btn-success');
+                
+                // 根据定时检测状态调整自动刷新频率
+                if (isOn) {
+                    // 如果开启了定时检测，每10秒自动刷新一次
+                    startAutoRefresh(10000);
+                } else {
+                    // 否则使用默认的较长刷新间隔
+                    startAutoRefresh(30000);
+                }
+            }
+            
+            // 启动自动刷新
+            function startAutoRefresh(interval) {
+                // 清除现有的自动刷新定时器
+                if (window.autoRefreshTimer) {
+                    clearInterval(window.autoRefreshTimer);
+                }
+                
+                // 设置新的自动刷新定时器
+                window.autoRefreshTimer = setInterval(function() {
+                    refreshAllData();
+                }, interval);
+                
+                console.log(`自动刷新已设置，间隔${interval/1000}秒`);
+            }
+            
+            // 刷新所有数据
+            function refreshAllData() {
+                console.log("自动刷新数据中...");
+                loadResults();
+                loadLatestResult();
+                
+                // 检查定时任务状态
+                fetch('/api/config')
+                    .then(response => response.json())
+                    .then(data => {
+                        updateScheduleButton(data.interval > 0);
+                        document.getElementById('currentEndpoint').textContent = data.endpoint || '未设置';
+                        document.getElementById('currentModel').textContent = data.model || '未设置';
+                        document.getElementById('schedulerStatus').textContent = data.interval > 0 ? 
+                            `已启动（${data.interval}分钟）` : '未启动';
+                    })
+                    .catch(error => {
+                        console.error('获取配置失败:', error);
+                    });
             }
             
             // 更新检测结果列表
             function updateResultsList(results) {
-                resultsList.innerHTML = '';
+                const historyResults = document.getElementById('historyResults');
+                
+                if (!historyResults) {
+                    console.error('未找到historyResults元素');
+                    return;
+                }
+                
+                // 清空现有内容
+                historyResults.innerHTML = '';
                 
                 if (!results || results.length === 0) {
-                    resultsList.innerHTML = '<p class="text-center text-muted">暂无检测结果</p>';
+                    historyResults.innerHTML = `
+                        <div class="text-center py-4">
+                            <p class="text-muted">尚无历史记录</p>
+                        </div>
+                    `;
                     return;
                 }
                 
                 // 按时间倒序排序
                 results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                 
-                results.forEach(result => {
-                    const resultItem = document.createElement('div');
-                    resultItem.className = 'list-group-item list-group-item-action result-card';
+                // 创建一个容器用于历史记录卡片
+                const resultsContainer = document.createElement('div');
+                resultsContainer.className = 'list-group';
+                
+                // 添加最近的5条记录（或更少）
+                const displayCount = Math.min(results.length, 5);
+                for (let i = 0; i < displayCount; i++) {
+                    const result = results[i];
+                    const resultItem = createResultCard(result);
+                    resultsContainer.appendChild(resultItem);
+                }
+                
+                // 如果有更多记录，添加一个显示更多的按钮
+                if (results.length > displayCount) {
+                    const moreButton = document.createElement('button');
+                    moreButton.className = 'btn btn-outline-secondary w-100 mt-2';
+                    moreButton.textContent = `显示更多 (${results.length - displayCount})`;
+                    moreButton.addEventListener('click', function() {
+                        showAllResults(results);
+                    });
                     
-                    let formattedTime = '无效时间';
-                    try {
-                        const timestamp = new Date(result.timestamp);
-                        if (!isNaN(timestamp.getTime())) {
-                            formattedTime = timestamp.toLocaleString();
-                        }
-                    } catch (e) {
-                        console.error('时间戳解析错误:', e);
-                    }
-                    
-                    resultItem.innerHTML = `
-                        <div class="d-flex w-100 justify-content-between">
-                            <h5 class="mb-1">
-                                <span class="status-badge status-${result.is_real_api}"></span>
-                                ${result.is_real_api ? '真实API' : '中转API'}
-                            </h5>
-                            <small>${formattedTime}</small>
-                        </div>
-                        <div class="mb-2">
-                            <span class="badge ${result.max_tokens_ok ? 'bg-success' : 'bg-danger'} me-1">max_tokens: ${result.max_tokens_ok ? '✓' : '✗'}</span>
-                            <span class="badge ${result.logprobs_ok ? 'bg-success' : 'bg-danger'} me-1">logprobs: ${result.logprobs_ok ? '✓' : '✗'}</span>
-                            <span class="badge ${result.multiple_ok ? 'bg-success' : 'bg-danger'} me-1">multiple: ${result.multiple_ok ? '✓' : '✗'}</span>
-                            <span class="badge ${result.stop_sequence_ok ? 'bg-success' : 'bg-danger'} me-1">stop: ${result.stop_sequence_ok ? '✓' : '✗'}</span>
-                        </div>
-                        <p class="mb-1 text-truncate">${result.endpoint}</p>
-                    `;
-                    
-                    if (result.raw_response) {
-                        resultItem.innerHTML += `<button class="btn btn-sm btn-outline-secondary mt-2 view-raw" data-response="${escapeHtml(result.raw_response)}">查看原始响应</button>`;
-                    }
-                    
-                    resultsList.appendChild(resultItem);
-                });
+                    resultsContainer.appendChild(moreButton);
+                }
+                
+                historyResults.appendChild(resultsContainer);
                 
                 // 绑定查看原始响应的事件
                 document.querySelectorAll('.view-raw').forEach(button => {
                     button.addEventListener('click', function() {
+                        const rawResponseModal = new bootstrap.Modal(document.getElementById('rawResponseModal'));
+                        const rawResponseContent = document.getElementById('rawResponseContent');
+                        rawResponseContent.textContent = unescapeHtml(this.getAttribute('data-response'));
+                        rawResponseModal.show();
+                    });
+                });
+            }
+            
+            // 创建一个结果卡片
+            function createResultCard(result) {
+                const resultItem = document.createElement('div');
+                resultItem.className = 'list-group-item list-group-item-action result-card';
+                
+                let formattedTime = '无效时间';
+                try {
+                    const timestamp = new Date(result.timestamp);
+                    if (!isNaN(timestamp.getTime())) {
+                        formattedTime = timestamp.toLocaleString();
+                    }
+                } catch (e) {
+                    console.error('时间戳解析错误:', e);
+                }
+                
+                resultItem.innerHTML = `
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">
+                            <span class="status-badge status-${result.is_real_api}"></span>
+                            ${result.is_real_api ? '真实API' : '中转API'}
+                        </h5>
+                        <small>${formattedTime}</small>
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge ${result.max_tokens_ok ? 'bg-success' : 'bg-danger'} me-1">max_tokens: ${result.max_tokens_ok ? '✓' : '✗'}</span>
+                        <span class="badge ${result.logprobs_ok ? 'bg-success' : 'bg-danger'} me-1">logprobs: ${result.logprobs_ok ? '✓' : '✗'}</span>
+                        <span class="badge ${result.multiple_ok ? 'bg-success' : 'bg-danger'} me-1">multiple: ${result.multiple_ok ? '✓' : '✗'}</span>
+                        <span class="badge ${result.stop_sequence_ok ? 'bg-success' : 'bg-danger'} me-1">stop: ${result.stop_sequence_ok ? '✓' : '✗'}</span>
+                    </div>
+                    <p class="mb-1 text-truncate">${result.endpoint}</p>
+                `;
+                
+                if (result.raw_response) {
+                    resultItem.innerHTML += `<button class="btn btn-sm btn-outline-secondary mt-2 view-raw" data-response="${escapeHtml(result.raw_response)}">查看原始响应</button>`;
+                }
+                
+                return resultItem;
+            }
+            
+            // 显示所有历史记录的模态框
+            function showAllResults(results) {
+                // 检查是否已存在模态框，不存在则创建
+                let allResultsModal = document.getElementById('allResultsModal');
+                if (!allResultsModal) {
+                    // 创建模态框
+                    const modalHtml = `
+                    <div class="modal fade" id="allResultsModal" tabindex="-1" aria-labelledby="allResultsModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="allResultsModalLabel">所有检测历史</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div id="allResultsContainer" class="list-group"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                    
+                    // 添加到文档中
+                    document.body.insertAdjacentHTML('beforeend', modalHtml);
+                    allResultsModal = document.getElementById('allResultsModal');
+                }
+                
+                // 获取内容容器
+                const allResultsContainer = document.getElementById('allResultsContainer');
+                allResultsContainer.innerHTML = '';
+                
+                // 填充所有结果
+                results.forEach(result => {
+                    const resultItem = createResultCard(result);
+                    allResultsContainer.appendChild(resultItem);
+                });
+                
+                // 显示模态框
+                const bsModal = new bootstrap.Modal(allResultsModal);
+                bsModal.show();
+                
+                // 绑定查看原始响应的事件
+                allResultsModal.querySelectorAll('.view-raw').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const rawResponseModal = new bootstrap.Modal(document.getElementById('rawResponseModal'));
+                        const rawResponseContent = document.getElementById('rawResponseContent');
                         rawResponseContent.textContent = unescapeHtml(this.getAttribute('data-response'));
                         rawResponseModal.show();
                     });
@@ -631,11 +799,6 @@
                     .replace(/&quot;/g, "\"")
                     .replace(/&#039;/g, "'");
             }
-            
-            // 每30秒自动刷新
-            setInterval(function() {
-                loadLatestResult();
-            }, 30000);
         });
     </script>
 </body>

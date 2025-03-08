@@ -10,25 +10,97 @@ body {
     margin: 0 auto;
 }
 
-/* 自定义卡片样式 */
-.custom-card {
+/* 标题和文本样式 */
+h1, h2, h3, h4, h5, h6 {
+    margin-bottom: 1rem;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.last-check {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+/* 卡片样式 */
+.card {
     border-radius: 10px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s, box-shadow 0.3s;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
 }
 
-.custom-card:hover {
+.card-header {
+    font-weight: 600;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.result-card {
+    transition: all 0.3s ease;
+}
+
+.result-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
-/* 结果状态颜色 */
+/* 状态指示器 */
+.status-badge {
+    width: 12px;
+    height: 12px;
+    display: inline-block;
+    border-radius: 50%;
+    margin-right: 5px;
+}
+
+.status-true {
+    background-color: #198754;
+}
+
+.status-false {
+    background-color: #dc3545;
+}
+
 .status-real {
     color: #28a745;
 }
 
 .status-fake {
     color: #dc3545;
+}
+
+/* 加载动画 */
+#loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    display: none;
+}
+
+/* 表单元素 */
+.form-control:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.btn {
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    transition: all 0.15s ease-in-out;
+}
+
+.btn:hover {
+    opacity: 0.9;
 }
 
 /* 响应式调整 */
@@ -45,5 +117,14 @@ body {
     .col-md-6 {
         padding-left: 10px;
         padding-right: 10px;
+    }
+    
+    .card {
+        margin-bottom: 15px;
+    }
+    
+    .btn {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.9rem;
     }
 } 
