@@ -1,0 +1,55 @@
+# 依赖目录
+node_modules/
+venv/
+env/
+.env
+
+# 构建输出和可执行文件
+dist/
+build/
+out/
+*.exe
+
+# IDE和编辑器文件
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# 日志文件
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 测试覆盖率
+coverage/
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# JavaScript/TypeScript
+.next/
+.nuxt/
+.gatsby/
+
+# 系统文件
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# 本地配置文件
+*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local 

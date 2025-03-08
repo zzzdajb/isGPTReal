@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenAI API真实性检测</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .status-badge {
+            width: 12px;
+            height: 12px;
+            display: inline-block;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-true {
+            background-color: #198754;
+        }
+        .status-false {
+            background-color: #dc3545;
+        }
+        .card {
+            margin-bottom: 20px;
+        }
+        .result-card {
+            transition: all 0.3s ease;
+        }
+        .result-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .last-check {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+    </div>
+
+    <div class="container mt-4">
+        <h1 class="mb-4 text-center">OpenAI API 真实性检测工具</h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        配置
+                    </div>
+                    <div class="card-body">
+                        <form id="configForm">
+                            <div class="mb-3">
+                                <label for="endpoint" class="form-label">API端点</label>
+                                <input type="text" class="form-control" id="endpoint" name="endpoint" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="apiKey" class="form-label">API密钥</label>
+                                <input type="password" class="form-control" id="apiKey" name="apiKey" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="model" class="form-label">模型</label>
+                                <input type="text" class="form-control" id="model" name="model" value="gpt-3.5-turbo" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="interval" class="form-label">检测间隔（分钟）</label>
+                                <input type="number" class="form-control" id="interval" name="interval" min="0" value="0">
+                                <div class="form-text">0表示不自动检测</div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="saveRawResp" name="saveRawResp" checked>
+                                    <label class="form-check-label" for="saveRawResp">保存原始响应</label>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">保存配置</button>
+                            <button type="button" id="detectNow" class="btn btn-success ms-2">立即检测</button>
+                            <button type="button" id="toggleSchedule" class="btn btn-info ms-2">定时开关</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        最新检测结果
+                    </div>
+                    <div class="card-body" id="latestResult">
+                        <p class="text-center text-muted">暂无检测结果</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>历史检测结果</span>
+                        <span class="last-check" id="lastCheckTime"></span>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group" id="resultsList">
+                            <!-- 结果将通过JavaScript填充 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 原始响应模态框 -->
+        <div class="modal fade" id="rawResponseModal" tabindex="-1" aria-labelledby="rawResponseModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="rawResponseModalLabel">原始API响应</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <pre id="rawResponseContent" style="max-height: 400px; overflow-y: auto;"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取元素
+            const configForm = document.getElementById('configForm');
+            const detectNowBtn = document.getElementById('detectNow');
+            const toggleScheduleBtn = document.getElementById('toggleSchedule');
+            const resultsList = document.getElementById('resultsList');
+            const latestResult = document.getElementById('latestResult');
+            const lastCheckTime = document.getElementById('lastCheckTime');
+            const loading = document.getElementById('loading');
+            const rawResponseModal = new bootstrap.Modal(document.getElementById('rawResponseModal'));
+            const rawResponseContent = document.getElementById('rawResponseContent');
+            
+            // 加载配置
+            loadConfig();
+            
+            // 加载检测结果
+            loadResults();
+            
+            // 设置表单提交处理
+            configForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                saveConfig();
+            });
+            
+            // 设置立即检测按钮
+            detectNowBtn.addEventListener('click', function() {
+                detectNow();
+            });
+            
+            // 设置定时开关按钮
+            toggleScheduleBtn.addEventListener('click', function() {
+                toggleSchedule();
+            });
+            
+            // 加载配置
+            function loadConfig() {
+                showLoading();
+                fetch('/api/config')
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('endpoint').value = data.endpoint || '';
+                        document.getElementById('apiKey').value = data.api_key || '';
+                        document.getElementById('model').value = data.model || 'gpt-3.5-turbo';
+                        document.getElementById('interval').value = data.interval || 0;
+                        document.getElementById('saveRawResp').checked = data.save_raw_response !== false;
+                        
+                        // 更新定时开关按钮状态
+                        updateScheduleButton(data.interval > 0);
+                    })
+                    .catch(error => {
+                        console.error('获取配置失败:', error);
+                        alert('获取配置失败: ' + error.message);
+                    })
+                    .finally(() => {
+                        hideLoading();
+                    });
+            }
+            
+            // 保存配置
+            function saveConfig() {
+                const config = {
+                    endpoint: document.getElementById('endpoint').value,
+                    api_key: document.getElementById('apiKey').value,
+                    model: document.getElementById('model').value,
+                    interval: parseInt(document.getElementById('interval').value) || 0,
+                    max_history: 100,
+                    save_raw_response: document.getElementById('saveRawResp').checked
+                };
+                
+                showLoading();
+                fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        alert('配置已保存');
+                        // 更新定时开关按钮状态
+                        updateScheduleButton(config.interval > 0);
+                    })
+                    .catch(error => {
+                        console.error('保存配置失败:', error);
+                        alert('保存配置失败: ' + error.message);
+                    })
+                    .finally(() => {
+                        hideLoading();
+                    });
+            }
+            
+            // 加载检测结果
+            function loadResults() {
+                showLoading();
+                fetch('/api/results')
+                    .then(response => response.json())
+                    .then(data => {
+                        updateResultsList(data);
+                        loadLatestResult();
+                    })
+                    .catch(error => {
+                        console.error('获取检测结果失败:', error);
+                    })
+                    .finally(() => {
+                        hideLoading();
+                    });
+            }
+            
+            // 加载最新的检测结果
+            function loadLatestResult() {
+                fetch('/api/results/latest')
+                    .then(response => {
+                        if (!response.ok && response.status === 404) {
+                            return null;
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data) {
+                            updateLatestResult(data);
+                            updateLastCheckTime(new Date(data.timestamp));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('获取最新检测结果失败:', error);
+                    });
+            }
+            
+            // 立即检测
+            function detectNow() {
+                // 立即更新UI为检测中状态
+                updateLatestResult(null);
+                
+                showLoading();
+                fetch('/api/detect', {
+                    method: 'POST'
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        // 开始轮询结果
+                        pollResults();
+                    })
+                    .catch(error => {
+                        console.error('检测失败:', error);
+                        alert('检测失败: ' + error.message);
+                    })
+                    .finally(() => {
+                        hideLoading();
+                    });
+            }
+            
+            // 轮询检测结果
+            function pollResults() {
+                const pollInterval = setInterval(() => {
+                    fetch('/api/results/latest')
+                        .then(response => {
+                            if (!response.ok && response.status === 404) {
+                                return null;
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data) {
+                                updateLatestResult(data);
+                                updateLastCheckTime(new Date(data.timestamp));
+                                // 如果获取到了结果，停止轮询
+                                clearInterval(pollInterval);
+                                // 刷新结果列表
+                                loadResults();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('获取最新检测结果失败:', error);
+                            // 如果出错，也停止轮询
+                            clearInterval(pollInterval);
+                        });
+                }, 1000); // 每秒轮询一次
+                
+                // 60秒后如果还没有结果，停止轮询
+                setTimeout(() => {
+                    clearInterval(pollInterval);
+                }, 60000);
+            }
+            
+            // 切换定时任务
+            function toggleSchedule() {
+                const interval = parseInt(document.getElementById('interval').value) || 0;
+                
+                if (interval <= 0) {
+                    alert('请设置有效的检测间隔');
+                    return;
+                }
+                
+                const currentStatus = toggleScheduleBtn.getAttribute('data-status') === 'on';
+                
+                showLoading();
+                if (currentStatus) {
+                    // 停止定时任务
+                    fetch('/api/schedule/stop', {
+                        method: 'POST'
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            updateScheduleButton(false);
+                            document.getElementById('interval').value = 0;
+                        })
+                        .catch(error => {
+                            console.error('停止定时任务失败:', error);
+                            alert('停止定时任务失败: ' + error.message);
+                        })
+                        .finally(() => {
+                            hideLoading();
+                        });
+                } else {
+                    // 启动定时任务
+                    fetch('/api/schedule/start', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ interval: interval })
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            updateScheduleButton(true);
+                        })
+                        .catch(error => {
+                            console.error('启动定时任务失败:', error);
+                            alert('启动定时任务失败: ' + error.message);
+                        })
+                        .finally(() => {
+                            hideLoading();
+                        });
+                }
+            }
+            
+            // 更新定时开关按钮状态
+            function updateScheduleButton(isOn) {
+                toggleScheduleBtn.setAttribute('data-status', isOn ? 'on' : 'off');
+                toggleScheduleBtn.textContent = isOn ? '停止定时检测' : '启动定时检测';
+                toggleScheduleBtn.classList.remove(isOn ? 'btn-success' : 'btn-danger');
+                toggleScheduleBtn.classList.add(isOn ? 'btn-danger' : 'btn-success');
+            }
+            
+            // 更新检测结果列表
+            function updateResultsList(results) {
+                resultsList.innerHTML = '';
+                
+                if (!results || results.length === 0) {
+                    resultsList.innerHTML = '<p class="text-center text-muted">暂无检测结果</p>';
+                    return;
+                }
+                
+                // 按时间倒序排序
+                results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                
+                results.forEach(result => {
+                    const resultItem = document.createElement('div');
+                    resultItem.className = 'list-group-item list-group-item-action result-card';
+                    
+                    let formattedTime = '无效时间';
+                    try {
+                        const timestamp = new Date(result.timestamp);
+                        if (!isNaN(timestamp.getTime())) {
+                            formattedTime = timestamp.toLocaleString();
+                        }
+                    } catch (e) {
+                        console.error('时间戳解析错误:', e);
+                    }
+                    
+                    resultItem.innerHTML = `
+                        <div class="d-flex w-100 justify-content-between">
+                            <h5 class="mb-1">
+                                <span class="status-badge status-${result.is_real_api}"></span>
+                                ${result.is_real_api ? '真实API' : '中转API'}
+                            </h5>
+                            <small>${formattedTime}</small>
+                        </div>
+                        <div class="mb-2">
+                            <span class="badge ${result.max_tokens_ok ? 'bg-success' : 'bg-danger'} me-1">max_tokens: ${result.max_tokens_ok ? '✓' : '✗'}</span>
+                            <span class="badge ${result.logprobs_ok ? 'bg-success' : 'bg-danger'} me-1">logprobs: ${result.logprobs_ok ? '✓' : '✗'}</span>
+                            <span class="badge ${result.multiple_ok ? 'bg-success' : 'bg-danger'} me-1">multiple: ${result.multiple_ok ? '✓' : '✗'}</span>
+                            <span class="badge ${result.stop_sequence_ok ? 'bg-success' : 'bg-danger'} me-1">stop: ${result.stop_sequence_ok ? '✓' : '✗'}</span>
+                        </div>
+                        <p class="mb-1 text-truncate">${result.endpoint}</p>
+                    `;
+                    
+                    if (result.raw_response) {
+                        resultItem.innerHTML += `<button class="btn btn-sm btn-outline-secondary mt-2 view-raw" data-response="${escapeHtml(result.raw_response)}">查看原始响应</button>`;
+                    }
+                    
+                    resultsList.appendChild(resultItem);
+                });
+                
+                // 绑定查看原始响应的事件
+                document.querySelectorAll('.view-raw').forEach(button => {
+                    button.addEventListener('click', function() {
+                        rawResponseContent.textContent = unescapeHtml(this.getAttribute('data-response'));
+                        rawResponseModal.show();
+                    });
+                });
+            }
+            
+            // 更新最新检测结果
+            function updateLatestResult(result) {
+                if (!result) {
+                    // 显示检测中的状态
+                    latestResult.innerHTML = `
+                        <div class="text-center mb-3">
+                            <h3 class="mb-0">
+                                <div class="spinner-border text-primary" role="status" style="width: 1.5rem; height: 1.5rem;">
+                                    <span class="visually-hidden">检测中...</span>
+                                </div>
+                                检测中
+                            </h3>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <div class="card border-secondary" style="height: 100%">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">max_tokens</h5>
+                                        <div class="spinner-border spinner-border-sm text-secondary" role="status">
+                                            <span class="visually-hidden">检测中...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="card border-secondary" style="height: 100%">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">logprobs</h5>
+                                        <div class="spinner-border spinner-border-sm text-secondary" role="status">
+                                            <span class="visually-hidden">检测中...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="card border-secondary" style="height: 100%">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">multiple (n)</h5>
+                                        <div class="spinner-border spinner-border-sm text-secondary" role="status">
+                                            <span class="visually-hidden">检测中...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="card border-secondary" style="height: 100%">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">stop</h5>
+                                        <div class="spinner-border spinner-border-sm text-secondary" role="status">
+                                            <span class="visually-hidden">检测中...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let formattedTime = '无效时间';
+                try {
+                    const timestamp = new Date(result.timestamp);
+                    if (!isNaN(timestamp.getTime())) {
+                        formattedTime = timestamp.toLocaleString();
+                    }
+                } catch (e) {
+                    console.error('时间戳解析错误:', e);
+                }
+                
+                latestResult.innerHTML = `
+                    <div class="text-center mb-3">
+                        <h3 class="mb-0">
+                            <span class="status-badge status-${result.is_real_api}" style="width: 18px; height: 18px;"></span>
+                            ${result.is_real_api ? '真实API' : '中转API'}
+                        </h3>
+                        <small class="text-muted">${formattedTime}</small>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <div class="card ${result.max_tokens_ok ? 'border-success' : 'border-danger'}" style="height: 100%">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">max_tokens</h5>
+                                    <p class="card-text display-6">${result.max_tokens_ok ? '✓' : '✗'}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="card ${result.logprobs_ok ? 'border-success' : 'border-danger'}" style="height: 100%">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">logprobs</h5>
+                                    <p class="card-text display-6">${result.logprobs_ok ? '✓' : '✗'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="card ${result.multiple_ok ? 'border-success' : 'border-danger'}" style="height: 100%">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">multiple (n)</h5>
+                                    <p class="card-text display-6">${result.multiple_ok ? '✓' : '✗'}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="card ${result.stop_sequence_ok ? 'border-success' : 'border-danger'}" style="height: 100%">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">stop</h5>
+                                    <p class="card-text display-6">${result.stop_sequence_ok ? '✓' : '✗'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                if (result.error) {
+                    latestResult.innerHTML += `
+                        <div class="alert alert-warning mt-3">
+                            <strong>错误信息：</strong> ${result.error}
+                        </div>
+                    `;
+                }
+                
+                if (result.raw_response) {
+                    latestResult.innerHTML += `
+                        <div class="text-center mt-3">
+                            <button class="btn btn-sm btn-outline-secondary view-raw" data-response="${escapeHtml(result.raw_response)}">查看原始响应</button>
+                        </div>
+                    `;
+                    
+                    // 绑定查看原始响应的事件
+                    latestResult.querySelector('.view-raw').addEventListener('click', function() {
+                        rawResponseContent.textContent = unescapeHtml(this.getAttribute('data-response'));
+                        rawResponseModal.show();
+                    });
+                }
+            }
+            
+            // 更新最后检测时间
+            function updateLastCheckTime(timestamp) {
+                if (!timestamp) {
+                    lastCheckTime.textContent = '';
+                    return;
+                }
+                
+                try {
+                    if (!isNaN(timestamp.getTime())) {
+                        lastCheckTime.textContent = `最后检测: ${timestamp.toLocaleString()}`;
+                    } else {
+                        lastCheckTime.textContent = '最后检测: 无效时间';
+                    }
+                } catch (e) {
+                    console.error('时间戳解析错误:', e);
+                    lastCheckTime.textContent = '最后检测: 无效时间';
+                }
+            }
+            
+            // 辅助函数：显示加载中
+            function showLoading() {
+                loading.style.display = 'flex';
+            }
+            
+            // 辅助函数：隐藏加载中
+            function hideLoading() {
+                loading.style.display = 'none';
+            }
+            
+            // 辅助函数：转义HTML
+            function escapeHtml(unsafe) {
+                return unsafe
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+            
+            // 辅助函数：反转义HTML
+            function unescapeHtml(safe) {
+                return safe
+                    .replace(/&amp;/g, "&")
+                    .replace(/&lt;/g, "<")
+                    .replace(/&gt;/g, ">")
+                    .replace(/&quot;/g, "\"")
+                    .replace(/&#039;/g, "'");
+            }
+            
+            // 每30秒自动刷新
+            setInterval(function() {
+                loadLatestResult();
+            }, 30000);
+        });
+    </script>
+</body>
+</html> 
