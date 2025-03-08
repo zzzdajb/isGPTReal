@@ -8,8 +8,8 @@ REM 如果需要，可以在这里设置环境变量
 REM set OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
 REM set OPENAI_API_KEY=your-api-key-here
 
-set OPENAI_ENDPOINT=
-set OPENAI_API_KEY=
+set OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
+set OPENAI_API_KEY=your-api-key-here
 
 echo 正在编译程序...
 go build -o isGPTReal.exe ./cmd
