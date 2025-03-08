@@ -1,0 +1,69 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*' # 当推送以 'v' 开头的标签时触发
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.0'
+          check-latest: true
+          
+      - name: Get the version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          
+      - name: Build for Windows
+        run: |
+          GOOS=windows GOARCH=amd64 go build -o isGPTReal-windows-amd64.exe -ldflags="-s -w" ./cmd
+          
+      - name: Build for Linux
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o isGPTReal-linux-amd64 -ldflags="-s -w" ./cmd
+      
+      - name: Prepare Windows Package
+        run: |
+          mkdir -p windows-package
+          cp isGPTReal-windows-amd64.exe windows-package/isGPTReal.exe
+          cp -r static windows-package/
+          cp -r templates windows-package/
+          cp run.bat windows-package/ || echo "run.bat not found"
+          
+      - name: Prepare Linux Package
+        run: |
+          mkdir -p linux-package
+          cp isGPTReal-linux-amd64 linux-package/isGPTReal
+          cp -r static linux-package/
+          cp -r templates linux-package/
+          cp run.sh linux-package/ || echo "run.sh not found"
+          chmod +x linux-package/isGPTReal
+          chmod +x linux-package/run.sh || echo "run.sh not found"
+          
+      - name: Create ZIP Packages
+        run: |
+          cd windows-package && zip -r ../isGPTReal-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip . && cd ..
+          cd linux-package && zip -r ../isGPTReal-${{ steps.get_version.outputs.VERSION }}-linux-amd64.zip . && cd ..
+          
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          files: |
+            isGPTReal-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip
+            isGPTReal-${{ steps.get_version.outputs.VERSION }}-linux-amd64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
