@@ -1,11 +1,11 @@
-# isGPTReal
+# isGPTReal - OpenAI API 逆向检测工具
 
 [![Go Version](https://img.shields.io/badge/Go-1.24%2B-blue)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-GPL--3.0-green)](LICENSE)
 
 ## 📝 项目简介
 
-isGPTReal 是一个强大的工具，用于验证 OpenAI 兼容 API 的真实性。在中国大陆由于无法直接访问 OpenAI 服务，许多用户会使用"中转 API"。这些服务可能使用逆向工程的方式实现，可能存在功能缺失或性能问题。本工具帮助你验证所使用的 API 是否为真实的官方服务。
+由于中国大陆地区对 OpenAI API 的访问受到限制，许多用户会使用“中转API”来解决使用问题。然而，这些中转API良莠不齐、鱼龙混杂，许多商家以次充好，使用逆向的API来冒充OpenAI或者Azure的API，本工具工具旨在帮助用户快速检测这些“中转API”的真实性。同时，为了解决商家“前期使用真API，后期掺水”的问题，本工具也提供了定时检测功能，帮助用户及时发现问题。
 
 ### ✨ 主要特性
 
@@ -54,14 +54,14 @@ isGPTReal 是一个强大的工具，用于验证 OpenAI 兼容 API 的真实性
 
 #### 1️⃣ 使用预编译文件（推荐）
 
-下载适合您系统的预编译文件，直接运行：
+从Github Release 下载适合您系统的预编译文件，解压以后直接运行：
 
 ```bash
 # Windows
-isGPTReal.exe --endpoint="https://api.openai.com/v1/chat/completions" --apikey="你的API密钥" --model="gpt-4o-mini"
+isGPTReal.exe --endpoint="https://api.openai.com/v1/chat/completions" --apikey="Your_API_Key" --model="gpt-4o-mini"
 
 # Linux/macOS
-./isGPTReal --endpoint="https://api.openai.com/v1/chat/completions" --apikey="你的API密钥" --model="gpt-4o-mini"
+./isGPTReal --endpoint="https://api.openai.com/v1/chat/completions" --apikey="Your_API_Key" --model="gpt-4o-mini"
 ```
 
 #### 2️⃣ 从源码编译
@@ -75,7 +75,7 @@ cd isGPTReal
 go build -o isGPTReal ./cmd
 
 # 运行
-./isGPTReal --endpoint="https://api.openai.com/v1/chat/completions" --apikey="你的API密钥"
+./isGPTReal --endpoint="https://api.openai.com/v1/chat/completions" --apikey="Your_API_Key"
 ```
 
 #### 3️⃣ 使用便捷脚本
@@ -86,7 +86,7 @@ Windows：
 ```batch
 # 编辑 run.bat 设置环境变量
 set OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
-set OPENAI_API_KEY=你的API密钥
+set OPENAI_API_KEY=Your_API_Key
 
 # 运行脚本
 run.bat
@@ -96,7 +96,7 @@ Linux/macOS：
 ```bash
 # 编辑 run.sh 设置环境变量
 export OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
-export OPENAI_API_KEY=你的API密钥
+export OPENAI_API_KEY=Your_API_Key
 
 # 添加执行权限
 chmod +x run.sh
@@ -109,8 +109,8 @@ chmod +x run.sh
 
 | 参数 | 说明 | 默认值 | 环境变量 |
 |------|------|--------|---------|
-| --endpoint | API 端点 URL | - | OPENAI_ENDPOINT |
-| --apikey | API 密钥 | - | OPENAI_API_KEY |
+| --endpoint | API URL | https://api.openai.com/v1/chat/completions | OPENAI_ENDPOINT |
+| --apikey | API 密钥 | Your_API_Key | OPENAI_API_KEY |
 | --model | 使用的模型 | gpt-4o-mini | - |
 | --interval | 自动检测间隔(分钟) | 0 | - |
 | --port | Web 服务端口 | 8080 | - |
@@ -123,8 +123,8 @@ chmod +x run.sh
 
 2. **配置检测参数**
    - 在 Web 界面配置页面填写必要信息：
-     - API 端点
-     - API 密钥
+     - API Endpoint
+     - API key
      - 模型名称
      - 检测间隔（可选）
 
@@ -157,4 +157,4 @@ chmod +x run.sh
 
 ---
 
-如有问题或建议，欢迎提交 Issue 或 Pull Request。
+如有问题或建议，欢迎提交 Issue 或 Pull Request。（放心大胆地提，反正我又不会写代码，我只会让Cursor看）
