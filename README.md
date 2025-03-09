@@ -54,7 +54,7 @@
 
 #### 1️⃣ 使用预编译文件（推荐）
 
-从Github Release 下载适合您系统的预编译文件，解压以后直接运行：
+从Github Release下载适合您系统的预编译文件，解压以后直接运行：
 
 ```bash
 # Windows
@@ -103,6 +103,67 @@ chmod +x run.sh
 
 # 运行脚本
 ./run.sh
+```
+
+#### 4️⃣ 使用Docker部署
+
+本项目提供了Docker部署支持，可以通过Docker容器快速部署和运行。
+
+##### 前提条件
+- 安装 [Docker](https://docs.docker.com/get-docker/)
+- 安装 [Docker Compose](https://docs.docker.com/compose/install/)（可选，用于使用docker-compose.yml）
+
+##### 单容器部署
+```bash
+# 构建Docker镜像
+docker build -t isgptreal .
+
+# 运行容器
+docker run -d -p 8080:8080 \
+  -e OPENAI_ENDPOINT="https://api.openai.com/v1/chat/completions" \
+  -e OPENAI_API_KEY="Your_API_Key" \
+  --name isgptreal isgptreal
+```
+
+##### 使用Docker Compose部署
+1. 创建环境变量文件 `.env`：
+```
+OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
+OPENAI_API_KEY=Your_API_Key
+```
+
+2. 运行Docker Compose：
+```bash
+docker-compose up -d
+```
+
+##### 自定义Docker配置
+您可以通过命令行参数自定义容器配置：
+```bash
+docker run -d -p 8080:8080 \
+  -e OPENAI_ENDPOINT="https://api.openai.com/v1/chat/completions" \
+  -e OPENAI_API_KEY="Your_API_Key" \
+  --name isgptreal isgptreal \
+  --model="gpt-4" --interval=60 --max-history=200
+```
+
+##### 查看容器日志
+```bash
+# 单容器部署
+docker logs -f isgptreal
+
+# Docker Compose部署
+docker-compose logs -f
+```
+
+##### 停止和删除容器
+```bash
+# 单容器部署
+docker stop isgptreal
+docker rm isgptreal
+
+# Docker Compose部署
+docker-compose down
 ```
 
 ### ⚙️ 配置参数

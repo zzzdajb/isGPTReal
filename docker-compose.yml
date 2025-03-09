@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  isgptreal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_ENDPOINT=${OPENAI_ENDPOINT}
+    restart: unless-stopped
+    # 如果需要持久化历史记录，可以添加卷
+    # volumes:
+    #   - ./data:/app/data 
