@@ -1,9 +1,7 @@
 # isGPTReal
 
-[![Go Version](https://img.shields.io/badge/Go-1.16%2B-blue)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/Go-1.24%2B-blue)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-GPL--3.0-green)](LICENSE)
-
-[English](README_EN.md) | 简体中文
 
 ## 📝 项目简介
 
@@ -11,16 +9,16 @@ isGPTReal 是一个强大的工具，用于验证 OpenAI 兼容 API 的真实性
 
 ### ✨ 主要特性
 
-- 🔍 全面的 API 真实性检测
-  - Token 限制检测
-  - Logprobs 支持检测
-  - 多结果返回检测
-  - 停止序列功能检测
-- 🌐 美观的 Web 界面
-- ⏱️ 支持单次检测和定时自动检测
-- 📊 检测历史记录查看
-- 🔬 API 原始响应内容查看
-- 🚀 一键部署，使用简单
+- 🔍 **全面的 API 真实性检测**
+  - Token 限制检测 - 验证 API 是否正确实现了 token 数量限制
+  - Logprobs 支持检测 - 检查 API 是否支持返回 logprobs 信息
+  - 多结果返回检测 - 测试 API 是否实现了多结果(n)参数功能
+  - 停止序列功能检测 - 验证 API 是否正确处理停止序列参数
+- 🌐 **美观的 Web 界面** - 直观显示检测结果和历史记录
+- ⏱️ **灵活的检测模式** - 支持单次检测和定时自动检测
+- 📊 **完整的结果分析** - 保存检测历史记录和详细结果
+- 🔬 **原始响应查看** - 可查看 API 返回的原始 JSON 响应
+- 🚀 **便捷的部署方式** - 支持多种部署方式，使用简单
 
 ## 🛠️ 技术实现
 
@@ -28,24 +26,35 @@ isGPTReal 是一个强大的工具，用于验证 OpenAI 兼容 API 的真实性
 
 本工具通过测试以下特性来判断 API 真实性：
 
-| 特性 | 检测内容 | 重要性 |
-|------|---------|--------|
-| max_tokens | Token 数量限制处理 | ⭐⭐⭐ |
-| logprobs | logprobs 信息支持 | ⭐⭐⭐⭐ |
-| n 参数 | 多结果返回能力 | ⭐⭐ |
-| stop 参数 | 停止序列功能实现 | ⭐⭐⭐ |
+| 特性 | 检测内容 | 重要性 | 说明 |
+|------|---------|--------|------|
+| max_tokens | Token 数量限制处理 | ⭐⭐⭐ | 检测 API 是否正确实现了 token 数量限制功能 |
+| logprobs | logprobs 信息支持 | ⭐⭐⭐⭐ | 检测 API 是否支持返回 token 概率信息，这是非官方 API 难以实现的功能 |
+| n 参数 | 多结果返回能力 | ⭐⭐ | 检测 API 是否能正确处理多结果返回请求 |
+| stop 参数 | 停止序列功能实现 | ⭐⭐⭐ | 检测 API 是否能在指定序列处正确停止生成 |
+
+### 技术栈
+
+- **后端框架**: Go 1.24+，使用 Gin 框架实现 Web 服务
+- **前端技术**: HTML/CSS/JavaScript，使用 Bootstrap 5 构建响应式界面
+- **第三方库**:
+  - gin-gonic/gin - Web 框架
+  - robfig/cron - 定时任务调度
+  - tiktoken-go/tokenizer - OpenAI tokenizer 实现
 
 ## 🚀 快速开始
 
 ### 环境要求
 
-- Go 1.16+
+- Go 1.24+ (仅从源码构建时需要)
 - 有效的 OpenAI API 密钥
 - Windows/Linux/macOS 系统
 
 ### 部署方式
 
 #### 1️⃣ 使用预编译文件（推荐）
+
+下载适合您系统的预编译文件，直接运行：
 
 ```bash
 # Windows
@@ -58,18 +67,29 @@ isGPTReal.exe --endpoint="https://api.openai.com/v1/chat/completions" --apikey="
 #### 2️⃣ 从源码编译
 
 ```bash
+# 克隆仓库
 git clone https://github.com/zzzdajb/isGPTReal.git
 cd isGPTReal
+
+# 编译
 go build -o isGPTReal ./cmd
+
+# 运行
+./isGPTReal --endpoint="https://api.openai.com/v1/chat/completions" --apikey="你的API密钥"
 ```
 
 #### 3️⃣ 使用便捷脚本
+
+提供了便捷脚本，可通过环境变量配置参数：
 
 Windows：
 ```batch
 # 编辑 run.bat 设置环境变量
 set OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
 set OPENAI_API_KEY=你的API密钥
+
+# 运行脚本
+run.bat
 ```
 
 Linux/macOS：
@@ -77,36 +97,55 @@ Linux/macOS：
 # 编辑 run.sh 设置环境变量
 export OPENAI_ENDPOINT=https://api.openai.com/v1/chat/completions
 export OPENAI_API_KEY=你的API密钥
+
+# 添加执行权限
+chmod +x run.sh
+
+# 运行脚本
+./run.sh
 ```
 
 ### ⚙️ 配置参数
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| --endpoint | API 端点 URL | - |
-| --apikey | API 密钥 | - |
-| --model | 使用的模型 | gpt-4o-mini |
-| --interval | 自动检测间隔(分钟) | 0 |
-| --port | Web 服务端口 | 8080 |
+| 参数 | 说明 | 默认值 | 环境变量 |
+|------|------|--------|---------|
+| --endpoint | API 端点 URL | - | OPENAI_ENDPOINT |
+| --apikey | API 密钥 | - | OPENAI_API_KEY |
+| --model | 使用的模型 | gpt-4o-mini | - |
+| --interval | 自动检测间隔(分钟) | 0 | - |
+| --port | Web 服务端口 | 8080 | - |
+| --max-history | 保存的历史记录最大数量 | 100 | - |
 
 ## 📖 使用指南
 
-1. 启动程序后访问 `http://localhost:8080`
-2. 在配置页面填写必要信息：
-   - API 端点
-   - API 密钥
-   - 模型名称
-   - 检测间隔（可选）
-3. 选择检测模式：
-   - 点击"立即检测"进行单次检测
-   - 设置间隔并启动定时检测
+1. **启动程序**
+   - 启动后访问 `http://localhost:8080`（或您设置的端口）
+
+2. **配置检测参数**
+   - 在 Web 界面配置页面填写必要信息：
+     - API 端点
+     - API 密钥
+     - 模型名称
+     - 检测间隔（可选）
+
+3. **进行检测**
+   - 点击"立即检测"按钮进行单次检测
+   - 设置间隔时间并启动定时检测
+
+4. **查看结果**
+   - 检测完成后可查看详细结果和评分
+   - 点击"查看原始响应"可以查看 API 返回的 JSON 数据
+
+5. **历史记录**
+   - 查看历史检测记录和趋势变化
+
 
 ## ⚠️ 注意事项
 
 - 检测结果仅供参考，不同 API 实现可能影响准确性
 - 请确保使用的模型名称与 API 提供商支持的一致
 - 程序使用内存存储，重启后数据会丢失
-- 建议定期进行检测，及时发现 API 变化
+- 建议定期进行检测，及时发现 API 质量变化
 
 ## 📄 许可证
 
